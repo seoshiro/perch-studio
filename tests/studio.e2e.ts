@@ -1,7 +1,14 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { parseProject, STORAGE_KEY } from "../src/model.ts";
+import {
+  clone,
+  initialProject,
+  parseProject,
+  STORAGE_KEY,
+} from "../src/model.ts";
+import { translator } from "../src/i18n.ts";
+import type { Locale } from "../src/i18n.ts";
 import type { Page } from "@playwright/test";
 const current = async (page: Page) =>
   page.evaluate((key) => {
@@ -155,25 +162,21 @@ test("JSON/SVG/PNG and printable report are real exports; import cancellation an
     .getByLabel("Width", { exact: false })
     .press("Tab");
   await settle(page);
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "room.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(content),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "room.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(content),
+  });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   expect(
     (await current(page)).items.find((i: { kind: string }) => i.kind === "sofa")
       .width,
   ).toBe(3);
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "room.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(content),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "room.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(content),
+  });
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await settle(page);
   const storedProject = () =>
@@ -193,13 +196,11 @@ test("JSON/SVG/PNG and printable report are real exports; import cancellation an
   await expect(
     page.locator(".inspector").getByLabel("Width", { exact: false }),
   ).toHaveValue("2.2");
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "bad.json",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"version":0}'),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "bad.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"version":0}'),
+  });
   await expect(page.getByRole("status").last()).toContainText(
     "not a supported",
   );
@@ -510,4 +511,111 @@ test("viewport/DPR/orientation matrix has no horizontal overflow or canvas loss"
     info.outputPath("viewport-matrix.json"),
     JSON.stringify(results, null, 2),
   );
+});
+test("localized phone measurement labels, numeric counts and fallback exports stay usable", async ({
+  page,
+}) => {
+  const project = initialProject(),
+    base = clone(project.layouts[0]);
+  const counts = [
+    [1, "предмет"],
+    [2, "предмета"],
+    [5, "предметов"],
+    [11, "предметов"],
+    [21, "предмет"],
+  ] as const;
+  project.layouts = counts.map(([n]) => ({
+    ...clone(base),
+    id: `qa-layout-${n}`,
+    name: `My layout ${n} - Copy`,
+    items: Array.from({ length: n }, (_, i) => ({
+      ...clone(base.items[i % base.items.length]),
+      id: `qa-piece-${n}-${i}`,
+    })),
+  }));
+  project.currentId = project.layouts[0].id;
+  await page.addInitScript(
+    ({ key, project }) => localStorage.setItem(key, JSON.stringify(project)),
+    { key: STORAGE_KEY, project },
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("./?no3d");
+  for (const locale of ["en", "ru", "kk"] as Locale[]) {
+    await page.locator("header select").selectOption(locale);
+    const t = translator(locale),
+      checkbox = page.getByRole("checkbox", {
+        name: t("measure"),
+        exact: true,
+      });
+    await expect(checkbox).toBeVisible();
+    await expect(checkbox).toBeChecked();
+    await checkbox.uncheck();
+    await expect(page.locator(".plan-container .plan-dimensions")).toHaveCount(
+      0,
+    );
+    await checkbox.check();
+    await expect(page.locator(".plan-container .plan-dimensions")).toHaveCount(
+      1,
+    );
+    await page.getByRole("button", { name: t("export"), exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: new RegExp(t("png")) }),
+    ).toBeDisabled();
+    await expect(page.locator("#png-export-note")).toHaveText(
+      t("imageUnavailable"),
+    );
+    await expect(
+      page.getByRole("button", { name: new RegExp(t("json")) }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: new RegExp(t("svg")) }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: new RegExp(t("report")) }),
+    ).toBeEnabled();
+    if (locale === "ru") {
+      const svgDownload = page.waitForEvent("download");
+      await page.getByRole("button", { name: new RegExp(t("svg")) }).click();
+      expect(await (await svgDownload).path()).not.toBeNull();
+    }
+    await page
+      .locator("dialog")
+      .getByRole("button", { name: t("close"), exact: true })
+      .click();
+  }
+  await page.locator("header select").selectOption("ru");
+  const t = translator("ru");
+  await page
+    .locator(".panel-tabs")
+    .getByRole("button", { name: t("layouts"), exact: true })
+    .click();
+  for (const [n, noun] of counts) {
+    const card = page
+      .locator(".variant-card")
+      .filter({ hasText: `My layout ${n} - Copy` });
+    await expect(card).toContainText(`${n} ${noun}`);
+    await expect(card.locator("strong")).toHaveText(`My layout ${n} - Copy`);
+  }
+  await page.getByRole("button", { name: t("compare"), exact: true }).click();
+  await expect(page.locator(".compare-stats").first()).toContainText(
+    "1предмет",
+  );
+  await expect(page.locator(".compare-stats").last()).toContainText(
+    "2предмета",
+  );
+  await page
+    .locator("dialog")
+    .getByRole("button", { name: t("close"), exact: true })
+    .click();
+  await page
+    .locator(".variant-card")
+    .filter({ hasText: "My layout 21 - Copy" })
+    .click();
+  await page.getByRole("button", { name: t("export"), exact: true }).click();
+  await page.getByRole("button", { name: new RegExp(t("report")) }).click();
+  await expect(page.locator(".print-report h2").first()).toHaveText(
+    "Мебель · 21 предмет",
+  );
+  await expect(page.locator(".report-plan svg")).toBeVisible();
+  await expect(page.locator(".report-image")).toHaveCount(0);
 });

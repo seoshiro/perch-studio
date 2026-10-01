@@ -24,7 +24,13 @@ import {
   LIMITS,
 } from "../src/model.ts";
 import type { Furniture, History, Project, Store } from "../src/model.ts";
-import { keys, locales, translator } from "../src/i18n.ts";
+import {
+  countLabel,
+  displayName,
+  keys,
+  locales,
+  translator,
+} from "../src/i18n.ts";
 function storage() {
   const data = new Map<string, string>();
   const store: Store = {
@@ -321,4 +327,34 @@ test("all interface keys have complete English, Russian and Kazakh copy", () => 
         `${locale}/${key}`,
       );
     }
+});
+test("count labels follow Russian numeric forms and preserve user-authored names", () => {
+  for (const [n, noun] of [
+    [0, "предметов"],
+    [1, "предмет"],
+    [2, "предмета"],
+    [5, "предметов"],
+    [7, "предметов"],
+    [11, "предметов"],
+    [12, "предметов"],
+    [14, "предметов"],
+    [21, "предмет"],
+    [22, "предмета"],
+    [25, "предметов"],
+    [60, "предметов"],
+    [101, "предмет"],
+    [111, "предметов"],
+  ] as const)
+    assert.equal(countLabel(n, "ru"), `${n} ${noun}`);
+  assert.equal(countLabel(1, "en"), "1 piece");
+  assert.equal(countLabel(2, "en"), "2 pieces");
+  assert.equal(countLabel(7, "kk"), "7 бұйым");
+  assert.equal(countLabel(1, "ru", "layouts"), "1 вариант");
+  assert.equal(countLabel(2, "ru", "layouts"), "2 варианта");
+  assert.equal(countLabel(5, "ru", "layouts"), "5 вариантов");
+  for (const locale of locales)
+    assert.equal(
+      displayName("Living room - Copy", translator(locale)),
+      "Living room - Copy",
+    );
 });

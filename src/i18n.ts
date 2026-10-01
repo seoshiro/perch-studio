@@ -321,9 +321,9 @@ const copy = {
     "Бұл құрылыс құжаты емес, жиһаз орналастыру нобайы. Өлшемдер енгізілген деректерге негізделеді; жарық пен материалдар көрнекі түрде берілген.",
   ],
   imageUnavailable: [
-    "Open the 3D view to export an image.",
-    "Откройте вид 3D для экспорта изображения.",
-    "Кескінді экспорттау үшін 3D көрінісін ашыңыз.",
+    "PNG requires a working 3D view. Use JSON, SVG or the report when 3D is unavailable.",
+    "Для PNG нужен работающий вид 3D. Если 3D недоступен, используйте JSON, SVG или отчёт.",
+    "PNG үшін жұмыс істейтін 3D көрініс қажет. 3D қолжетімсіз болса, JSON, SVG немесе есепті пайдаланыңыз.",
   ],
   reportView: ["Room overview", "Общий вид комнаты", "Бөлменің жалпы көрінісі"],
   dimensions: ["Dimensions", "Размеры", "Өлшемдер"],
@@ -408,4 +408,56 @@ export function format(n: number, locale: Locale, digits = 2) {
   return new Intl.NumberFormat(locale === "kk" ? "kk-KZ" : locale, {
     maximumFractionDigits: digits,
   }).format(n);
+}
+const countForms = {
+  en: {
+    quantity: { one: "piece", few: "pieces", many: "pieces", other: "pieces" },
+    layouts: {
+      one: "layout",
+      few: "layouts",
+      many: "layouts",
+      other: "layouts",
+    },
+  },
+  ru: {
+    quantity: {
+      one: "предмет",
+      few: "предмета",
+      many: "предметов",
+      other: "предмета",
+    },
+    layouts: {
+      one: "вариант",
+      few: "варианта",
+      many: "вариантов",
+      other: "варианта",
+    },
+  },
+  kk: {
+    quantity: { one: "бұйым", few: "бұйым", many: "бұйым", other: "бұйым" },
+    layouts: { one: "нұсқа", few: "нұсқа", many: "нұсқа", other: "нұсқа" },
+  },
+} as const;
+const countRules = {
+  en: new Intl.PluralRules("en"),
+  ru: new Intl.PluralRules("ru"),
+  kk: new Intl.PluralRules("kk"),
+};
+export function countNoun(
+  n: number,
+  locale: Locale,
+  kind: "quantity" | "layouts" = "quantity",
+) {
+  const category = countRules[locale].select(n),
+    forms = countForms[locale][kind];
+  return category === "one" || category === "few" || category === "many"
+    ? forms[category]
+    : forms.other;
+}
+export function countLabel(
+  n: number,
+  locale: Locale,
+  kind: "quantity" | "layouts" = "quantity",
+) {
+  return `${format(n, locale, 0)} ${countNoun(n, locale, kind)}`;
 }

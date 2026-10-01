@@ -78,7 +78,14 @@ import type {
   Side,
   Store,
 } from "./model.ts";
-import { displayName, format, locales, translator } from "./i18n.ts";
+import {
+  countLabel,
+  countNoun,
+  displayName,
+  format,
+  locales,
+  translator,
+} from "./i18n.ts";
 import type { Key, Locale } from "./i18n.ts";
 const Scene = lazy(() => import("./Scene.tsx"));
 type Modal =
@@ -332,7 +339,8 @@ export default function App() {
       layout.id,
       layout.id,
     ]),
-    [reportImage, setReportImage] = useState<string | null>(null);
+    [reportImage, setReportImage] = useState<string | null>(null),
+    [sceneReady, setSceneReady] = useState(false);
   const input = useRef<HTMLInputElement>(null),
     exportPlan = useRef<HTMLDivElement>(null),
     scene = useRef<SceneHandle | null>(null),
@@ -469,6 +477,7 @@ export default function App() {
   };
   const onSceneReady = useCallback((api: SceneHandle | null) => {
     scene.current = api;
+    setSceneReady(api !== null);
   }, []);
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -1107,7 +1116,7 @@ export default function App() {
                           <strong>{displayName(l.name, t)}</strong>
                           <small>
                             {format(l.room.width * l.room.depth, locale)} m² ·{" "}
-                            {l.items.length} {t("quantity").toLowerCase()}
+                            {countLabel(l.items.length, locale)}
                           </small>
                         </span>
                         {l.id === layout.id && <Check size={16} />}
@@ -1236,6 +1245,7 @@ export default function App() {
                         <input
                           type="checkbox"
                           checked={measure}
+                          aria-label={t("measure")}
                           onChange={(e) => setMeasure(e.target.checked)}
                         />
                         <Ruler size={16} />
@@ -1571,11 +1581,17 @@ export default function App() {
                   </span>
                   <Download size={18} />
                 </button>
-                <button onClick={exportPng}>
+                <button
+                  onClick={exportPng}
+                  disabled={!sceneReady}
+                  aria-describedby="png-export-note"
+                >
                   <Image size={24} />
                   <span>
                     <strong>{t("png")}</strong>
-                    <small>{t("pngNote")}</small>
+                    <small id="png-export-note">
+                      {t(sceneReady ? "pngNote" : "imageUnavailable")}
+                    </small>
                   </span>
                   <Download size={18} />
                 </button>
@@ -1623,12 +1639,14 @@ export default function App() {
                 <div className="import-summary">
                   <strong>{pending.name}</strong>
                   <span>
-                    {pending.layouts.length} {t("layouts").toLowerCase()} ·{" "}
-                    {pending.layouts.reduce(
-                      (sum, l) => sum + l.items.length,
-                      0,
-                    )}{" "}
-                    {t("quantity").toLowerCase()}
+                    {countLabel(pending.layouts.length, locale, "layouts")} ·{" "}
+                    {countLabel(
+                      pending.layouts.reduce(
+                        (sum, l) => sum + l.items.length,
+                        0,
+                      ),
+                      locale,
+                    )}
                   </span>
                 </div>
               )}
@@ -1725,7 +1743,7 @@ export default function App() {
                       </span>
                       <span>
                         {l.items.length}
-                        <small>{t("quantity")}</small>
+                        <small>{countNoun(l.items.length, locale)}</small>
                       </span>
                       <span>
                         {warnings(l).length}
@@ -1772,7 +1790,9 @@ export default function App() {
                     <Plan layout={layout} locale={locale} readonly />
                   </div>
                 </div>
-                <h2>{t("furniture")}</h2>
+                <h2>
+                  {t("furniture")} · {countLabel(layout.items.length, locale)}
+                </h2>
                 <table>
                   <thead>
                     <tr>
