@@ -32,6 +32,19 @@ test("200% text remains usable on phone and desktop", async ({
     await expect(
       page.locator(".inspector").getByLabel("Width", { exact: false }),
     ).toHaveValue("2.4");
+    const inspector = await page.locator(".inspector").boundingBox(),
+      footer = await page.locator(".app-footer").boundingBox();
+    expect(inspector).not.toBeNull();
+    expect(footer).not.toBeNull();
+    expect(footer!.y).toBeGreaterThanOrEqual(inspector!.y + inspector!.height);
+    if (width === 768) {
+      const title = await page.locator(".selected-title").boundingBox(),
+        fields = await page
+          .locator(".inspector .field-grid")
+          .first()
+          .boundingBox();
+      expect(title!.y + title!.height).toBeLessThanOrEqual(fields!.y);
+    }
     await page.screenshot({
       path: info.outputPath(`text-200-${width}.png`),
       fullPage: true,

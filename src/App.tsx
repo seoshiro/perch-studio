@@ -337,9 +337,19 @@ export default function App() {
     exportPlan = useRef<HTMLDivElement>(null),
     scene = useRef<SceneHandle | null>(null),
     savedProject = useRef(project),
+    lastSavedProject = useRef<Project | null>(
+      initial.status === "loaded" ? initial.project : null,
+    ),
     allowSave = useRef(!saveBlocked);
   savedProject.current = project;
   allowSave.current = !saveBlocked;
+  // A new snapshot is pending immediately, before the save effect runs.
+  const visibleSaveState =
+    saveState === "error"
+      ? "error"
+      : lastSavedProject.current === project
+        ? "saved"
+        : "saving";
   const selectedItem = layout.items.find((i) => i.id === selected) ?? null,
     shownItem = preview?.id === selected ? preview : selectedItem,
     notes = warnings({
@@ -476,9 +486,15 @@ export default function App() {
   }, [project.currentId, layout.items]);
   useEffect(() => {
     if (saveBlocked) return;
+    if (lastSavedProject.current === project) {
+      setSaveState("saved");
+      return;
+    }
     setSaveState("saving");
     const timer = setTimeout(() => {
-      setSaveState(save(browserStore(), project) ? "saved" : "error");
+      const success = save(browserStore(), project);
+      if (success) lastSavedProject.current = project;
+      setSaveState(success ? "saved" : "error");
     }, 400);
     return () => clearTimeout(timer);
   }, [project, saveBlocked]);
@@ -735,11 +751,11 @@ export default function App() {
           </div>
           <div className="project-actions">
             <span
-              className={`save-indicator ${saveState === "error" ? "error" : ""}`}
+              className={`save-indicator ${visibleSaveState === "error" ? "error" : ""}`}
             >
-              {saveState === "saved" ? (
+              {visibleSaveState === "saved" ? (
                 <Check size={14} />
-              ) : saveState === "saving" ? (
+              ) : visibleSaveState === "saving" ? (
                 <Save size={14} />
               ) : (
                 <TriangleAlert size={14} />
@@ -747,9 +763,9 @@ export default function App() {
               <span>
                 {saveBlocked
                   ? t("broken")
-                  : saveState === "saved"
+                  : visibleSaveState === "saved"
                     ? t("local")
-                    : saveState === "saving"
+                    : visibleSaveState === "saving"
                       ? t("saving")
                       : t("saveError")}
               </span>

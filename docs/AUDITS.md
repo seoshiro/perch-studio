@@ -10,4 +10,8 @@ Three distinct substantial audit/fix rounds were performed before publication.
 
 The browser suite covers 320, 360, 390 and 414 px phone widths, their landscape orientations, 768/1024 tablet sizes, and 1440/1920 desktop sizes at DPR 1/2/3. Enlarged text is checked at 320/390/768/1440. This is Chrome/Chromium automation and viewport emulation; physical phones and Safari were not tested.
 
+Linux CI exposed a save-status race during import: the interface briefly retained the previous snapshot's saved label before its next save effect. The release repair derives the label from the last successfully persisted snapshot immediately. The import regression checks the complete restored project, undo/redo and a fresh reload, rather than relying only on a status label.
+
+Additional screenshot review at 200% text caught a tablet height cap that let the footer overlap the inspector, plus implicit grid placement that put the selected-piece heading below its room overview. The responsive grid now grows with its content and places the heading explicitly. Browser checks assert the footer follows the inspector and the selected heading precedes its fields.
+
 Fresh lockfile installation, typechecking, lint, unit tests, production build and the complete 12-case browser suite are release gates. The GitHub workflow repeats those checks before deploying the exact commit. Live key workflows are repeated after deployment. Working screenshots, exported files and traces remain local rather than being published as a large evidence bundle.

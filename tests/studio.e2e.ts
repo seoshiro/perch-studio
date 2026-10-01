@@ -176,16 +176,23 @@ test("JSON/SVG/PNG and printable report are real exports; import cancellation an
     });
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await settle(page);
-  expect(
-    (await current(page)).items.find((i: { kind: string }) => i.kind === "sofa")
-      .width,
-  ).toBe(2.2);
+  const storedProject = () =>
+    page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY);
+  expect(await storedProject()).toEqual(project);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await settle(page);
   expect(
     (await current(page)).items.find((i: { kind: string }) => i.kind === "sofa")
       .width,
   ).toBe(3);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await settle(page);
+  expect(await storedProject()).toEqual(project);
+  await page.reload();
+  await selectSofa(page);
+  await expect(
+    page.locator(".inspector").getByLabel("Width", { exact: false }),
+  ).toHaveValue("2.2");
   await page
     .locator("input[type=file]")
     .setInputFiles({
@@ -199,7 +206,7 @@ test("JSON/SVG/PNG and printable report are real exports; import cancellation an
   expect(
     (await current(page)).items.find((i: { kind: string }) => i.kind === "sofa")
       .width,
-  ).toBe(3);
+  ).toBe(2.2);
 });
 test("precise plan dragging is transactional; cancelled and rapid moves do not lose data", async ({
   page,
